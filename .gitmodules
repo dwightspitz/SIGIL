@@ -1,0 +1,3 @@
+[submodule "PINESCRIPT"]
+	path = PINESCRIPT
+	url = https://github.com/dwightspitz/Pinescript_Library.git

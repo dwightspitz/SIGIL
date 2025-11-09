@@ -1,0 +1,35 @@
+# Ignore everything by default
+*
+
+# But track these specific items
+!.gitignore
+!README.md
+!CLAUDE.md
+
+# Track PINESCRIPT folder and its contents
+!PINESCRIPT/
+!PINESCRIPT/**
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
