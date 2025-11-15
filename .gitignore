@@ -4,7 +4,6 @@
 # But track these specific items
 !.gitignore
 !README.md
-!CLAUDE.md
 
 # Track PINESCRIPT folder and its contents
 !PINESCRIPT/
