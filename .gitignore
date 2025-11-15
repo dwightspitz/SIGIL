@@ -5,6 +5,10 @@
 !.gitignore
 !README.md
 
+# Track assets folder (logos, images)
+!assets/
+!assets/**
+
 # Track PINESCRIPT folder and its contents
 !PINESCRIPT/
 !PINESCRIPT/**
