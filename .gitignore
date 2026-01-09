@@ -13,6 +13,9 @@
 !PINESCRIPT/
 !PINESCRIPT/**
 
+# Track tools/calculators
+!crypto-exit-calculator.html
+
 # Python
 __pycache__/
 *.py[cod]

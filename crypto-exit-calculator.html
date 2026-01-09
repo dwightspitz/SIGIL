@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>SIGIL Exit Calculator</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --yellow: #d29922;
+            --red: #f85149;
+            --border: #30363d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 16px;
+            padding-top: env(safe-area-inset-top, 16px);
+            padding-bottom: env(safe-area-inset-bottom, 16px);
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+        }
+
+        input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        .hold-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .hold-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .hold-values {
+            text-align: right;
+        }
+
+        .hold-percent {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        .sell-percent {
+            font-size: 0.8rem;
+            color: var(--yellow);
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.visible {
+            display: block;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .result-row:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .result-value {
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+
+        .result-value.price {
+            color: var(--accent);
+        }
+
+        .result-value.gain {
+            color: var(--green);
+        }
+
+        .result-value.sell {
+            color: var(--yellow);
+        }
+
+        .result-value.keep {
+            color: var(--green);
+        }
+
+        .result-value.recovery {
+            color: var(--text-primary);
+        }
+
+        .highlight-box {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .highlight-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .highlight-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--green);
+        }
+
+        .highlight-sub {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .scenario-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .scenario-btn {
+            flex: 1;
+            padding: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .scenario-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .info-text {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-top: 8px;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+        }
+
+        .formula {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.75rem;
+            color: var(--accent);
+            margin-top: 8px;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg-primary: #ffffff;
+                --bg-secondary: #f6f8fa;
+                --bg-tertiary: #eaeef2;
+                --text-primary: #1f2328;
+                --text-secondary: #656d76;
+                --accent: #0969da;
+                --green: #1a7f37;
+                --yellow: #9a6700;
+                --red: #cf222e;
+                --border: #d0d7de;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SIGIL Exit Calculator</h1>
+            <p class="subtitle">Round Exit Strategy</p>
+        </header>
+
+        <div class="card">
+            <div class="card-title">Position Strategy</div>
+            <div class="hold-display">
+                <span class="hold-label">Hold / Sell Split</span>
+                <div class="hold-values">
+                    <div class="hold-percent">HOLD 21.5201%</div>
+                    <div class="sell-percent">SELL 78.4799%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Position Details</div>
+            <div class="input-group">
+                <label for="investment">Initial Investment ($)</label>
+                <input type="number" id="investment" placeholder="1000" step="any" inputmode="decimal">
+            </div>
+            <div class="input-group">
+                <label for="entryPrice">Entry Price ($)</label>
+                <input type="number" id="entryPrice" placeholder="50.00" step="any" inputmode="decimal">
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Calculate</div>
+            <div class="scenario-toggle">
+                <button class="scenario-btn active" data-scenario="full">Full Recovery</button>
+                <button class="scenario-btn" data-scenario="target">Target Price</button>
+            </div>
+
+            <div id="targetInput" class="input-group" style="display: none;">
+                <label for="targetPrice">Target/Current Price ($)</label>
+                <input type="number" id="targetPrice" placeholder="63.71" step="any" inputmode="decimal">
+            </div>
+
+            <div class="info-text" id="scenarioInfo">
+                Calculate the price needed to recover 100% of your initial investment by selling 78.4799% of your position.
+            </div>
+        </div>
+
+        <div class="card results" id="results">
+            <div class="card-title">Exit Plan</div>
+
+            <div class="result-row">
+                <span class="result-label">Total Units</span>
+                <span class="result-value" id="totalUnits">-</span>
+            </div>
+
+            <div class="result-row">
+                <span class="result-label">Units to Sell (78.48%)</span>
+                <span class="result-value sell" id="sellUnits">-</span>
+            </div>
+
+            <div class="result-row">
+                <span class="result-label">Units to Keep (21.52%)</span>
+                <span class="result-value keep" id="keepUnits">-</span>
+            </div>
+
+            <div class="result-row">
+                <span class="result-label">Required Exit Price</span>
+                <span class="result-value price" id="exitPrice">-</span>
+            </div>
+
+            <div class="result-row">
+                <span class="result-label">Required Gain</span>
+                <span class="result-value gain" id="requiredGain">-</span>
+            </div>
+
+            <div class="result-row" id="recoveryRow">
+                <span class="result-label">Investment Recovered</span>
+                <span class="result-value recovery" id="recoveryAmount">-</span>
+            </div>
+
+            <div class="highlight-box">
+                <div class="highlight-label">Free Position Value</div>
+                <div class="highlight-value" id="freePosition">$0.00</div>
+                <div class="highlight-sub" id="freePositionUnits">0 units @ $0.00</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Math</div>
+            <div class="info-text">
+                To recover 100% of investment by selling 78.4799%:<br>
+                <span class="formula">Exit = Entry ÷ 0.784799 ≈ Entry × 1.2742</span><br><br>
+                This requires a <strong>27.42%</strong> gain to hit full recovery.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const HOLD_PERCENT = 0.215201;
+        const SELL_PERCENT = 0.784799;
+
+        const investmentInput = document.getElementById('investment');
+        const entryPriceInput = document.getElementById('entryPrice');
+        const targetPriceInput = document.getElementById('targetPrice');
+        const targetInputGroup = document.getElementById('targetInput');
+        const resultsCard = document.getElementById('results');
+        const scenarioInfo = document.getElementById('scenarioInfo');
+        const scenarioBtns = document.querySelectorAll('.scenario-btn');
+        const recoveryRow = document.getElementById('recoveryRow');
+
+        let currentScenario = 'full';
+
+        // Format number with commas and decimal places
+        function formatNumber(num, decimals = 2) {
+            return num.toLocaleString('en-US', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        }
+
+        // Format currency
+        function formatCurrency(num) {
+            return '$' + formatNumber(num, 2);
+        }
+
+        // Format units (more decimals for crypto)
+        function formatUnits(num) {
+            if (num >= 1000) return formatNumber(num, 2);
+            if (num >= 1) return formatNumber(num, 4);
+            return formatNumber(num, 8);
+        }
+
+        // Calculate and display results
+        function calculate() {
+            const investment = parseFloat(investmentInput.value);
+            const entryPrice = parseFloat(entryPriceInput.value);
+
+            if (!investment || !entryPrice || investment <= 0 || entryPrice <= 0) {
+                resultsCard.classList.remove('visible');
+                return;
+            }
+
+            const totalUnits = investment / entryPrice;
+            const sellUnits = totalUnits * SELL_PERCENT;
+            const keepUnits = totalUnits * HOLD_PERCENT;
+
+            let exitPrice, recoveryAmount;
+
+            if (currentScenario === 'full') {
+                // Full recovery: exit price that recovers 100% of investment
+                exitPrice = entryPrice / SELL_PERCENT;
+                recoveryAmount = investment;
+            } else {
+                // Target price scenario
+                const targetPrice = parseFloat(targetPriceInput.value);
+                if (!targetPrice || targetPrice <= 0) {
+                    resultsCard.classList.remove('visible');
+                    return;
+                }
+                exitPrice = targetPrice;
+                recoveryAmount = sellUnits * exitPrice;
+            }
+
+            const requiredGain = ((exitPrice / entryPrice) - 1) * 100;
+            const recoveryPercent = (recoveryAmount / investment) * 100;
+            const freePositionValue = keepUnits * exitPrice;
+
+            // Update display
+            document.getElementById('totalUnits').textContent = formatUnits(totalUnits);
+            document.getElementById('sellUnits').textContent = formatUnits(sellUnits);
+            document.getElementById('keepUnits').textContent = formatUnits(keepUnits);
+            document.getElementById('exitPrice').textContent = formatCurrency(exitPrice);
+            document.getElementById('requiredGain').textContent = '+' + formatNumber(requiredGain, 2) + '%';
+            document.getElementById('recoveryAmount').textContent =
+                formatCurrency(recoveryAmount) + ' (' + formatNumber(recoveryPercent, 1) + '%)';
+            document.getElementById('freePosition').textContent = formatCurrency(freePositionValue);
+            document.getElementById('freePositionUnits').textContent =
+                formatUnits(keepUnits) + ' units @ ' + formatCurrency(exitPrice);
+
+            // Show/hide recovery row based on scenario
+            recoveryRow.style.display = currentScenario === 'target' ? 'flex' : 'none';
+
+            resultsCard.classList.add('visible');
+        }
+
+        // Scenario toggle
+        scenarioBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                scenarioBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentScenario = btn.dataset.scenario;
+
+                if (currentScenario === 'full') {
+                    targetInputGroup.style.display = 'none';
+                    scenarioInfo.innerHTML = 'Calculate the price needed to recover <strong>100%</strong> of your initial investment by selling 78.4799% of your position.';
+                } else {
+                    targetInputGroup.style.display = 'block';
+                    scenarioInfo.innerHTML = 'Enter a target price to see how much of your investment you can recover at that price.';
+                }
+                calculate();
+            });
+        });
+
+        // Input listeners
+        investmentInput.addEventListener('input', calculate);
+        entryPriceInput.addEventListener('input', calculate);
+        targetPriceInput.addEventListener('input', calculate);
+
+        // Initial calculation if values exist
+        calculate();
+    </script>
+</body>
+</html>
