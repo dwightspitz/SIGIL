@@ -209,97 +209,99 @@ if uploaded_file is None:
 # Load data
 @st.cache_data
 def load_data(file):
-    """Load and cache the CSV data"""
+    """Load and cache the CSV data - handles any TradingView export format"""
     df = pd.read_csv(file)
 
-    # Standardize column names from TradingView export to match dashboard expectations
-    # Only map the ": All" aggregate metrics to avoid duplicates
-    # Leave Long/Short versions untouched
-    column_mapping = {
-        # Performance Metrics - Only map ": All" versions
-        'Net P&L %: All': 'Net_Profit_Pct',
-        'Total trades: All': 'Total_Trades',
-        'Percent profitable: All': 'Percent_Profitable',
-        'Profit factor: All': 'Profit_Factor',
+    # Auto-detect and standardize column names from any TradingView export
+    # This uses pattern matching to handle variations in column naming
 
-        # Drawdown Metrics - Map close-to-close versions
-        'Max equity drawdown (close-to-close) %': 'Max_Drawdown_Pct',
-        'Avg equity drawdown (close-to-close) %': 'Avg_Drawdown_Pct',
+    # Build dynamic column mapping based on what's in the CSV
+    column_mapping = {}
+
+    for col in df.columns:
+        col_lower = col.lower()
+
+        # Performance Metrics - prefer ": All" versions, fall back to base
+        if 'net p&l %' in col_lower or 'net profit %' in col_lower:
+            if ': all' in col_lower or col_lower.endswith('net p&l %') or col_lower.endswith('net profit %'):
+                column_mapping[col] = 'Net_Profit_Pct'
+        elif 'total trades' in col_lower or 'total closed trades' in col_lower:
+            if ': all' in col_lower or 'total trades' == col_lower or 'total closed trades' == col_lower:
+                column_mapping[col] = 'Total_Trades'
+        elif 'percent profitable' in col_lower:
+            if ': all' in col_lower or col_lower == 'percent profitable':
+                column_mapping[col] = 'Percent_Profitable'
+        elif 'profit factor' in col_lower:
+            if ': all' in col_lower or col_lower == 'profit factor':
+                column_mapping[col] = 'Profit_Factor'
+
+        # Drawdown Metrics
+        elif 'max' in col_lower and 'drawdown' in col_lower and '%' in col_lower:
+            column_mapping[col] = 'Max_Drawdown_Pct'
+        elif 'avg' in col_lower and 'drawdown' in col_lower and '%' in col_lower:
+            column_mapping[col] = 'Avg_Drawdown_Pct'
 
         # Run-up Metrics
-        'Max equity run-up (close-to-close) %': 'Max_Run_Up_Pct',
+        elif 'max' in col_lower and 'run-up' in col_lower and '%' in col_lower:
+            column_mapping[col] = 'Max_Run_Up_Pct'
 
-        # Trade Metrics - Only map ": All" versions
-        'Avg P&L %: All': 'Avg_Trade_Pct',
-        'Avg # bars in trades: All': 'Avg_Bars_In_Trades',
+        # Trade Metrics
+        elif ('avg p&l %' in col_lower or 'avg trade %' in col_lower):
+            if ': all' in col_lower or col_lower in ['avg p&l %', 'avg trade %']:
+                column_mapping[col] = 'Avg_Trade_Pct'
+        elif 'avg' in col_lower and 'bars in trades' in col_lower:
+            if ': all' in col_lower or col_lower == 'avg # bars in trades':
+                column_mapping[col] = 'Avg_Bars_In_Trades'
 
-        # Winning Trade Metrics - Only map ": All" versions
-        'Avg winning trade %: All': 'Avg_Winning_Trade_Pct',
-        'Avg # bars in winning trades: All': 'Avg_Bars_In_Winning_Trades',
+        # Winning Trade Metrics
+        elif 'avg winning trade' in col_lower and '%' in col_lower:
+            if ': all' in col_lower or col_lower == 'avg winning trade %':
+                column_mapping[col] = 'Avg_Winning_Trade_Pct'
+        elif 'avg' in col_lower and 'bars in winning' in col_lower:
+            if ': all' in col_lower or 'winning trades' in col_lower:
+                column_mapping[col] = 'Avg_Bars_In_Winning_Trades'
 
-        # Losing Trade Metrics - Only map ": All" versions
-        'Avg losing trade %: All': 'Avg_Losing_Trade_Pct',
-        'Avg # bars in losing trades: All': 'Avg_Bars_In_Losing_Trades',
+        # Losing Trade Metrics
+        elif 'avg losing trade' in col_lower and '%' in col_lower:
+            if ': all' in col_lower or col_lower == 'avg losing trade %':
+                column_mapping[col] = 'Avg_Losing_Trade_Pct'
+        elif 'avg' in col_lower and 'bars in losing' in col_lower:
+            if ': all' in col_lower or 'losing trades' in col_lower:
+                column_mapping[col] = 'Avg_Bars_In_Losing_Trades'
 
-        # Extreme Trade Metrics - Only map ": All" versions
-        'Largest winning trade percent: All': 'Largest_Winning_Trade_Pct',
-        'Largest losing trade percent: All': 'Largest_Losing_Trade_Pct',
+        # Extreme Trade Metrics
+        elif 'largest winning' in col_lower and '%' in col_lower:
+            if ': all' in col_lower or 'percent' in col_lower:
+                column_mapping[col] = 'Largest_Winning_Trade_Pct'
+        elif 'largest losing' in col_lower and '%' in col_lower:
+            if ': all' in col_lower or 'percent' in col_lower:
+                column_mapping[col] = 'Largest_Losing_Trade_Pct'
 
         # Benchmark
-        'Buy & hold % gain': 'Buy_And_Hold_Return_Pct',
+        elif 'buy & hold' in col_lower or 'buy and hold' in col_lower:
+            column_mapping[col] = 'Buy_And_Hold_Return_Pct'
 
         # Capital Efficiency Metrics
-        'Account size required': 'Account_Size_Required',
-        'Return on account size required: All': 'Return_On_Account_Size_Required',
+        elif col_lower == 'account size required':
+            column_mapping[col] = 'Account_Size_Required'
+        elif 'return on account size' in col_lower:
+            column_mapping[col] = 'Return_On_Account_Size_Required'
 
-        # Parameter columns (from TradingView strategy properties panel)
-        '__Donchian Length': 'Top_DC_Length',
-        '__Donchian Offset': 'Top_DC_Offset',
-        '__ATR Period': 'ATR_Period',
-        '__HHV Period': 'HHV_Period',
-        '__Multiplier': 'ATR_Multiplier',
-        '__TRAMA Length': 'TRAMA_Length',
-        '__Slope Lookback': 'TRAMA_Lookback',
+        # Strategy Parameters (columns starting with __)
+        # These are auto-detected and cleaned up
+        elif col.startswith('__'):
+            # Clean parameter name: remove __ prefix, replace spaces with _, handle special chars
+            clean_name = col.replace(' ', '_').replace('(', '').replace(')', '').replace('°', '')
+            column_mapping[col] = clean_name
 
-        # MACD Slope parameters
-        '__Use MACD Slope': '__Use_MACD_Slope',
-        '__Source': '__Source',
-        '__Fast Length': '__Fast_Length',
-        '__Slow Length': '__Slow_Length',
-        '__Signal Length': '__Signal_Length',
-        '__Histogram Smoothing (SMA)': '__Histogram_Smoothing_SMA',
-        '__Slope Lookback (bars)': '__Slope_Lookback_bars',
-        '__Entry Slope Threshold (°)': '__Entry_Slope_Threshold',
-        '__Exit Slope Threshold (°)': '__Exit_Slope_Threshold',
-
-        # RSI Slope parameters
-        '__Use RSI Slope': '__Use_RSI_Slope',
-        '__RSI Length': '__RSI_Length',
-        '__Smoothing Type': '__Smoothing_Type',
-        '__Smoothing Length': '__Smoothing_Length',
-
-        # Hold % parameters
-        '__Donchian Channel Hold %': '__Donchian_Channel_Hold_Pct',
-        '__MACD Slope Hold %': '__MACD_Slope_Hold_Pct',
-        '__RSI Slope Hold %': '__RSI_Slope_Hold_Pct',
-        '__Trailing Stop Hold %': '__Trailing_Stop_Hold_Pct',
-
-        # Other toggle parameters
-        '__Use Donchian Channel': '__Use_Donchian_Channel',
-        '__Use Trailing Stop for Exit': '__Use_Trailing_Stop',
-        '__Use TRAMA Slope Filter': '__Use_TRAMA_Slope_Filter',
-        '__Enable ATR Position Sizing': '__Enable_ATR_Position_Sizing',
-        '__Position Scale Factor': '__Position_Scale_Factor',
-    }
-
-    # Rename columns that exist in the dataframe
-    df = df.rename(columns={k: v for k, v in column_mapping.items() if k in df.columns})
+    # Rename columns that were mapped
+    df = df.rename(columns=column_mapping)
 
     # Remove duplicate columns (keep first occurrence)
     # This handles cases where TradingView exports both base columns and ": All" versions
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
-    # Calculate derived metrics
+    # Calculate derived metrics (only for columns that exist)
     df = calculate_derived_metrics(df)
 
     # Detect strategy types
@@ -309,6 +311,9 @@ def load_data(file):
 
 try:
     df = load_data(uploaded_file)
+
+    # Set available metrics based on loaded data
+    metrics_config = get_available_metrics(df)
 
     # Display data info with date range
     info_col1, info_col2, info_col3 = st.columns(3)
@@ -367,6 +372,29 @@ except Exception as e:
 with st.expander("Data Preview", expanded=False):
     st.dataframe(df.head(10), use_container_width=True)
     st.caption(f"Showing first 10 of {len(df):,} rows")
+
+# Column Detection Info
+with st.expander("📋 Detected Columns", expanded=False):
+    col_info1, col_info2, col_info3 = st.columns(3)
+
+    # Categorize detected columns
+    metric_cols = [col for col in df.columns if col in ALL_METRICS_CONFIG or col in metrics_config]
+    param_cols = [col for col in df.columns if col.startswith('__') or any(p in col for p in ['DC_', 'ATR_', 'TRAMA_', 'HHV_', 'Length', 'Offset'])]
+    other_cols = [col for col in df.columns if col not in metric_cols and col not in param_cols]
+
+    with col_info1:
+        st.markdown("**Performance Metrics**")
+        st.write(", ".join(metric_cols) if metric_cols else "None detected")
+
+    with col_info2:
+        st.markdown("**Strategy Parameters**")
+        st.write(", ".join(param_cols) if param_cols else "None detected")
+
+    with col_info3:
+        st.markdown("**Other Columns**")
+        st.write(", ".join(other_cols[:15]) + ("..." if len(other_cols) > 15 else "") if other_cols else "None")
+
+    st.caption(f"Total: {len(df.columns)} columns detected")
 
 # Metric Glossary
 with st.expander("📊 Metric Glossary", expanded=False):
@@ -553,41 +581,47 @@ st.header("Filters")
 def get_filter_preset(preset_name):
     """
     Get predefined filter configurations for common analysis scenarios.
+    Only returns values for metrics that exist in the current metrics_config.
 
     Returns: dict of {metric_name: percentile_value}
     """
-    presets = {
-        "Balanced (50% All)": {k: 50 for k in metrics_config.keys()},
+    # Base presets with all possible metrics
+    all_presets = {
+        "Balanced (50% All)": {k: 50 for k in ALL_METRICS_CONFIG.keys()},
         "Conservative": {
             'Win_Loss_Ratio': 70, 'Profit_Factor': 70, 'Win_Loss_Spread': 70, 'Loss_Control_Metric': 20,
             'Max_Drawdown_Pct': 20, 'Avg_Drawdown_Pct': 20, 'Tail_Risk': 15, 'Avg_RunUp_DD_Ratio': 70,
             'Equity_Curve_Smoothness': 80, 'Trade_Duration_Efficiency': 60, 'Win_Loss_Duration_Spread': 60,
             'Hedge_Quality_Index': 80, 'Net_Profit_Pct': 60, 'Percent_Profitable': 70, 'Max_Run_Up_Pct': 60,
-            'Capital_Leverage_Ratio': 30, 'Capital_Efficiency_Ratio': 70
+            'Capital_Leverage_Ratio': 30, 'Capital_Efficiency_Ratio': 70, 'Total_Trades': 50
         },
         "Aggressive": {
             'Win_Loss_Ratio': 50, 'Profit_Factor': 80, 'Win_Loss_Spread': 60, 'Loss_Control_Metric': 50,
             'Max_Drawdown_Pct': 60, 'Avg_Drawdown_Pct': 60, 'Tail_Risk': 50, 'Avg_RunUp_DD_Ratio': 60,
             'Equity_Curve_Smoothness': 50, 'Trade_Duration_Efficiency': 70, 'Win_Loss_Duration_Spread': 50,
             'Hedge_Quality_Index': 50, 'Net_Profit_Pct': 80, 'Percent_Profitable': 50, 'Max_Run_Up_Pct': 80,
-            'Capital_Leverage_Ratio': 80, 'Capital_Efficiency_Ratio': 50
+            'Capital_Leverage_Ratio': 80, 'Capital_Efficiency_Ratio': 50, 'Total_Trades': 50
         },
         "High Quality": {
             'Win_Loss_Ratio': 80, 'Profit_Factor': 70, 'Win_Loss_Spread': 80, 'Loss_Control_Metric': 20,
             'Max_Drawdown_Pct': 20, 'Avg_Drawdown_Pct': 20, 'Tail_Risk': 20, 'Avg_RunUp_DD_Ratio': 80,
             'Equity_Curve_Smoothness': 80, 'Trade_Duration_Efficiency': 70, 'Win_Loss_Duration_Spread': 70,
             'Hedge_Quality_Index': 80, 'Net_Profit_Pct': 70, 'Percent_Profitable': 70, 'Max_Run_Up_Pct': 70,
-            'Capital_Leverage_Ratio': 20, 'Capital_Efficiency_Ratio': 80
+            'Capital_Leverage_Ratio': 20, 'Capital_Efficiency_Ratio': 80, 'Total_Trades': 50
         },
         "Low Risk": {
             'Win_Loss_Ratio': 60, 'Profit_Factor': 60, 'Win_Loss_Spread': 60, 'Loss_Control_Metric': 15,
             'Max_Drawdown_Pct': 15, 'Avg_Drawdown_Pct': 15, 'Tail_Risk': 10, 'Avg_RunUp_DD_Ratio': 70,
             'Equity_Curve_Smoothness': 80, 'Trade_Duration_Efficiency': 50, 'Win_Loss_Duration_Spread': 60,
             'Hedge_Quality_Index': 80, 'Net_Profit_Pct': 50, 'Percent_Profitable': 70, 'Max_Run_Up_Pct': 50,
-            'Capital_Leverage_Ratio': 20, 'Capital_Efficiency_Ratio': 80
+            'Capital_Leverage_Ratio': 20, 'Capital_Efficiency_Ratio': 80, 'Total_Trades': 50
         }
     }
-    return presets.get(preset_name, presets["Balanced (50% All)"])
+
+    preset = all_presets.get(preset_name, all_presets["Balanced (50% All)"])
+
+    # Filter to only include metrics that exist in current metrics_config
+    return {k: v for k, v in preset.items() if k in metrics_config}
 
 # Filter preset selector
 preset_col1, preset_col2 = st.columns([1, 3])
@@ -608,36 +642,46 @@ st.markdown("**Set percentile thresholds for each metric** (higher % = more sele
 # Create filter columns (4 columns for expanded metrics)
 col1, col2, col3, col4 = st.columns(4)
 
-# Define metrics and their filter directions
-metrics_config = {
-    # Format: 'Column_Name': ('Display Name', 'direction', default_pct, tooltip)
+# Define ALL possible metrics and their filter directions
+# These will be filtered to only show metrics that exist in the uploaded data
+ALL_METRICS_CONFIG = {
+    # Format: 'Column_Name': ('Display Name', 'direction', default_pct, tooltip, category)
     # direction: 'top' = keep top X%, 'bottom' = keep bottom X%
 
     # Win/Loss Analysis
-    'Win_Loss_Ratio': ('Win/Loss Ratio', 'top', 50, 'Avg Win % / |Avg Loss %|. Higher = wins much larger than losses. Good > 2.0'),
-    'Profit_Factor': ('Profit Factor', 'top', 50, 'Gross Profit / Gross Loss. Higher = better. Good > 1.5'),
-    'Win_Loss_Spread': ('Win/Loss Spread', 'top', 50, 'Avg Win % - Avg Loss %. Higher = better expectancy'),
-    'Loss_Control_Metric': ('Loss Control', 'bottom', 50, 'Avg Loss % / Avg Win %. Lower = better loss control. Good < 0.5'),
+    'Win_Loss_Ratio': ('Win/Loss Ratio', 'top', 50, 'Avg Win % / |Avg Loss %|. Higher = wins much larger than losses. Good > 2.0', 'Win/Loss Analysis'),
+    'Profit_Factor': ('Profit Factor', 'top', 50, 'Gross Profit / Gross Loss. Higher = better. Good > 1.5', 'Win/Loss Analysis'),
+    'Win_Loss_Spread': ('Win/Loss Spread', 'top', 50, 'Avg Win % - Avg Loss %. Higher = better expectancy', 'Win/Loss Analysis'),
+    'Loss_Control_Metric': ('Loss Control', 'bottom', 50, 'Avg Loss % / Avg Win %. Lower = better loss control. Good < 0.5', 'Win/Loss Analysis'),
 
     # Risk Management
-    'Max_Drawdown_Pct': ('Max Drawdown %', 'bottom', 50, 'Maximum peak-to-trough decline. Lower = better capital preservation'),
-    'Avg_Drawdown_Pct': ('Avg Drawdown %', 'bottom', 50, 'Average close-to-close drawdown. Lower = more consistent'),
-    'Tail_Risk': ('Tail Risk', 'bottom', 50, 'Largest Loss / Avg Loss. Lower = no extreme outliers. Good < 2.0'),
-    'Avg_RunUp_DD_Ratio': ('Avg Run-Up/DD Ratio', 'top', 50, 'Max Run-up / Avg Drawdown. Higher = better upside vs typical DD. Good > 15'),
+    'Max_Drawdown_Pct': ('Max Drawdown %', 'bottom', 50, 'Maximum peak-to-trough decline. Lower = better capital preservation', 'Risk Management'),
+    'Avg_Drawdown_Pct': ('Avg Drawdown %', 'bottom', 50, 'Average close-to-close drawdown. Lower = more consistent', 'Risk Management'),
+    'Tail_Risk': ('Tail Risk', 'bottom', 50, 'Largest Loss / Avg Loss. Lower = no extreme outliers. Good < 2.0', 'Risk Management'),
+    'Avg_RunUp_DD_Ratio': ('Avg Run-Up/DD Ratio', 'top', 50, 'Max Run-up / Avg Drawdown. Higher = better upside vs typical DD. Good > 15', 'Risk Management'),
 
     # Efficiency & Consistency
-    'Equity_Curve_Smoothness': ('Equity Smoothness', 'top', 50, 'Max Run-up / Max Drawdown. Higher = smoother equity curve. Good > 3.0'),
-    'Trade_Duration_Efficiency': ('Duration Efficiency', 'top', 50, 'Net Profit % / Avg Bars. Higher = better time usage'),
-    'Win_Loss_Duration_Spread': ('Win/Loss Duration Spread', 'top', 50, 'Time efficiency: winning fast vs losing slow. Positive = good'),
-    'Hedge_Quality_Index': ('Hedge Quality', 'top', 50, '(1 - Loss/Win) × 100. Higher = better loss management (0-100 scale)'),
-    'Capital_Leverage_Ratio': ('Capital Leverage', 'bottom', 50, 'Account Size Required / Initial Capital. Lower = less leverage needed. 1.0 = no leverage'),
-    'Capital_Efficiency_Ratio': ('Capital Efficiency', 'top', 50, 'Return / Leverage Ratio. Higher = better return per dollar of capital required'),
+    'Equity_Curve_Smoothness': ('Equity Smoothness', 'top', 50, 'Max Run-up / Max Drawdown. Higher = smoother equity curve. Good > 3.0', 'Efficiency'),
+    'Trade_Duration_Efficiency': ('Duration Efficiency', 'top', 50, 'Net Profit % / Avg Bars. Higher = better time usage', 'Efficiency'),
+    'Win_Loss_Duration_Spread': ('Win/Loss Duration Spread', 'top', 50, 'Time efficiency: winning fast vs losing slow. Positive = good', 'Efficiency'),
+    'Hedge_Quality_Index': ('Hedge Quality', 'top', 50, '(1 - Loss/Win) × 100. Higher = better loss management (0-100 scale)', 'Efficiency'),
+    'Capital_Leverage_Ratio': ('Capital Leverage', 'bottom', 50, 'Account Size Required / Initial Capital. Lower = less leverage needed. 1.0 = no leverage', 'Efficiency'),
+    'Capital_Efficiency_Ratio': ('Capital Efficiency', 'top', 50, 'Return / Leverage Ratio. Higher = better return per dollar of capital required', 'Efficiency'),
 
     # Overall Performance
-    'Net_Profit_Pct': ('Net Profit %', 'top', 50, 'Total return. Higher = better'),
-    'Percent_Profitable': ('Win Rate %', 'top', 50, 'Percentage of winning trades. Higher = better'),
-    'Max_Run_Up_Pct': ('Max Run-Up %', 'top', 50, 'Maximum peak-to-bottom gain. Higher = strong profit potential'),
+    'Net_Profit_Pct': ('Net Profit %', 'top', 50, 'Total return. Higher = better', 'Performance'),
+    'Percent_Profitable': ('Win Rate %', 'top', 50, 'Percentage of winning trades. Higher = better', 'Performance'),
+    'Max_Run_Up_Pct': ('Max Run-Up %', 'top', 50, 'Maximum peak-to-bottom gain. Higher = strong profit potential', 'Performance'),
+    'Total_Trades': ('Total Trades', 'top', 50, 'Number of closed trades. Higher = more opportunities', 'Performance'),
 }
+
+# Filter to only include metrics that exist in the loaded dataframe
+def get_available_metrics(df):
+    """Return metrics_config filtered to only metrics present in the dataframe"""
+    return {k: v for k, v in ALL_METRICS_CONFIG.items() if k in df.columns}
+
+# Will be set after data is loaded
+metrics_config = {}
 
 # Get preset values if selected
 preset_values = get_filter_preset(filter_preset) if filter_preset != "Custom" else {}
@@ -645,102 +689,48 @@ preset_values = get_filter_preset(filter_preset) if filter_preset != "Custom" el
 # Store filter values
 filters = {}
 
-with col1:
-    st.subheader("Win/Loss Analysis")
-    filters['Win_Loss_Ratio'] = st.slider(
-        "Win/Loss Ratio (Top)",
-        0, 100, preset_values.get('Win_Loss_Ratio', 100), 5,
-        help=metrics_config['Win_Loss_Ratio'][3]
-    )
-    filters['Profit_Factor'] = st.slider(
-        "Profit Factor (Top)",
-        0, 100, preset_values.get('Profit_Factor', 100), 5,
-        help=metrics_config['Profit_Factor'][3]
-    )
-    filters['Win_Loss_Spread'] = st.slider(
-        "Win/Loss Spread (Top)",
-        0, 100, preset_values.get('Win_Loss_Spread', 100), 5,
-        help=metrics_config['Win_Loss_Spread'][3]
-    )
-    filters['Loss_Control_Metric'] = st.slider(
-        "Loss Control (Bottom)",
-        0, 100, preset_values.get('Loss_Control_Metric', 100), 5,
-        help=metrics_config['Loss_Control_Metric'][3]
-    )
+# Group metrics by category for display
+def group_metrics_by_category(metrics_cfg):
+    """Group available metrics by their category"""
+    categories = {}
+    for metric, config in metrics_cfg.items():
+        category = config[4] if len(config) > 4 else 'Other'
+        if category not in categories:
+            categories[category] = []
+        categories[category].append((metric, config))
+    return categories
 
-with col2:
-    st.subheader("Risk Management")
-    filters['Max_Drawdown_Pct'] = st.slider(
-        "Max Drawdown % (Bottom)",
-        0, 100, preset_values.get('Max_Drawdown_Pct', 100), 5,
-        help=metrics_config['Max_Drawdown_Pct'][3]
-    )
-    filters['Avg_Drawdown_Pct'] = st.slider(
-        "Avg Drawdown % (Bottom)",
-        0, 100, preset_values.get('Avg_Drawdown_Pct', 100), 5,
-        help=metrics_config['Avg_Drawdown_Pct'][3]
-    )
-    filters['Tail_Risk'] = st.slider(
-        "Tail Risk (Bottom)",
-        0, 100, preset_values.get('Tail_Risk', 100), 5,
-        help=metrics_config['Tail_Risk'][3]
-    )
-    filters['Avg_RunUp_DD_Ratio'] = st.slider(
-        "Avg Run-Up/DD Ratio (Top)",
-        0, 100, preset_values.get('Avg_RunUp_DD_Ratio', 100), 5,
-        help=metrics_config['Avg_RunUp_DD_Ratio'][3]
-    )
+grouped_metrics = group_metrics_by_category(metrics_config)
 
-with col3:
-    st.subheader("Efficiency & Consistency")
-    filters['Equity_Curve_Smoothness'] = st.slider(
-        "Equity Smoothness (Top)",
-        0, 100, preset_values.get('Equity_Curve_Smoothness', 100), 5,
-        help=metrics_config['Equity_Curve_Smoothness'][3]
-    )
-    filters['Trade_Duration_Efficiency'] = st.slider(
-        "Duration Efficiency (Top)",
-        0, 100, preset_values.get('Trade_Duration_Efficiency', 100), 5,
-        help=metrics_config['Trade_Duration_Efficiency'][3]
-    )
-    filters['Win_Loss_Duration_Spread'] = st.slider(
-        "Win/Loss Duration Spread (Top)",
-        0, 100, preset_values.get('Win_Loss_Duration_Spread', 100), 5,
-        help=metrics_config['Win_Loss_Duration_Spread'][3]
-    )
-    filters['Hedge_Quality_Index'] = st.slider(
-        "Hedge Quality (Top)",
-        0, 100, preset_values.get('Hedge_Quality_Index', 100), 5,
-        help=metrics_config['Hedge_Quality_Index'][3]
-    )
-    filters['Capital_Leverage_Ratio'] = st.slider(
-        "Capital Leverage (Bottom)",
-        0, 100, preset_values.get('Capital_Leverage_Ratio', 100), 5,
-        help=metrics_config['Capital_Leverage_Ratio'][3]
-    )
-    filters['Capital_Efficiency_Ratio'] = st.slider(
-        "Capital Efficiency (Top)",
-        0, 100, preset_values.get('Capital_Efficiency_Ratio', 100), 5,
-        help=metrics_config['Capital_Efficiency_Ratio'][3]
-    )
+# Display metrics dynamically based on what's available
+# Use up to 4 columns, distributing categories evenly
+category_names = list(grouped_metrics.keys())
+num_categories = len(category_names)
 
-with col4:
-    st.subheader("Overall Performance")
-    filters['Net_Profit_Pct'] = st.slider(
-        "Net Profit % (Top)",
-        0, 100, preset_values.get('Net_Profit_Pct', 100), 5,
-        help=metrics_config['Net_Profit_Pct'][3]
-    )
-    filters['Percent_Profitable'] = st.slider(
-        "Win Rate % (Top)",
-        0, 100, preset_values.get('Percent_Profitable', 100), 5,
-        help=metrics_config['Percent_Profitable'][3]
-    )
-    filters['Max_Run_Up_Pct'] = st.slider(
-        "Max Run-Up % (Top)",
-        0, 100, preset_values.get('Max_Run_Up_Pct', 100), 5,
-        help=metrics_config['Max_Run_Up_Pct'][3]
-    )
+if num_categories == 0:
+    st.warning("No filterable metrics detected in the uploaded CSV. Please check the file format.")
+else:
+    # Create columns based on number of categories (max 4)
+    num_cols = min(4, num_categories)
+    cols = st.columns(num_cols)
+
+    # Distribute categories across columns
+    for i, (category, metrics_list) in enumerate(grouped_metrics.items()):
+        col_idx = i % num_cols
+        with cols[col_idx]:
+            st.subheader(category)
+            for metric, config in metrics_list:
+                display_name = config[0]
+                direction = config[1]
+                tooltip = config[3]
+                direction_label = "(Top)" if direction == 'top' else "(Bottom)"
+
+                filters[metric] = st.slider(
+                    f"{display_name} {direction_label}",
+                    0, 100, preset_values.get(metric, 100), 5,
+                    help=tooltip,
+                    key=f"filter_{metric}"
+                )
 
 # Apply Filters Button
 st.markdown("---")
@@ -800,29 +790,28 @@ if apply_filters or 'filtered_df' in st.session_state:
         # Allow override of preset axes
         st.markdown("*Customize axes (overrides preset):*")
 
-        # X-axis metric
-        x_axis_options = [
-            'Avg_Drawdown_Pct', 'Max_Drawdown_Pct', 'Avg_Bars_In_Trades',
-            'Total_Trades', 'Loss_Control_Metric', 'Tail_Risk'
-        ]
-        x_axis_default_idx = x_axis_options.index(preset_config['x_axis']) if preset_config['x_axis'] in x_axis_options else 0
+        # Get numeric columns available for charting
+        numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
+
+        # Filter to meaningful metrics (exclude index-like columns)
+        chart_cols = [col for col in numeric_cols if not col.startswith('Unnamed')]
+
+        # X-axis metric - prefer preset if available, otherwise use first available
+        x_axis_default = preset_config['x_axis'] if preset_config['x_axis'] in chart_cols else (chart_cols[0] if chart_cols else None)
+        x_axis_default_idx = chart_cols.index(x_axis_default) if x_axis_default in chart_cols else 0
         x_axis = st.selectbox(
             "X-Axis",
-            x_axis_options,
+            chart_cols,
             index=x_axis_default_idx,
             help="Horizontal axis metric"
         )
 
         # Y-axis metric
-        y_axis_options = [
-            'Win_Loss_Ratio', 'Win_Loss_Spread', 'Max_Run_Up_Pct',
-            'Risk_Adjusted_CAGR', 'Trade_Duration_Efficiency',
-            'Net_Profit_Pct', 'Profit_Factor', 'Equity_Curve_Smoothness'
-        ]
-        y_axis_default_idx = y_axis_options.index(preset_config['y_axis']) if preset_config['y_axis'] in y_axis_options else 0
+        y_axis_default = preset_config['y_axis'] if preset_config['y_axis'] in chart_cols else (chart_cols[1] if len(chart_cols) > 1 else chart_cols[0] if chart_cols else None)
+        y_axis_default_idx = chart_cols.index(y_axis_default) if y_axis_default in chart_cols else 0
         y_axis = st.selectbox(
             "Y-Axis",
-            y_axis_options,
+            chart_cols,
             index=y_axis_default_idx,
             help="Vertical axis metric"
         )
@@ -830,31 +819,21 @@ if apply_filters or 'filtered_df' in st.session_state:
         st.markdown("---")
 
         # Bubble size metric
-        size_options = [
-            'Total_Trades', 'Win_Loss_Ratio', 'Net_Profit_Pct',
-            'Max_Run_Up_Pct', 'Calmar_Ratio', 'Risk_Adjusted_CAGR',
-            'Trade_Duration_Efficiency', 'Percent_Profitable',
-            'Hedge_Quality_Index', 'Tail_Risk'
-        ]
-        size_default_idx = size_options.index(preset_config['size_metric']) if preset_config['size_metric'] in size_options else 0
+        size_default = preset_config['size_metric'] if preset_config['size_metric'] in chart_cols else (chart_cols[2] if len(chart_cols) > 2 else chart_cols[0] if chart_cols else None)
+        size_default_idx = chart_cols.index(size_default) if size_default in chart_cols else 0
         size_metric = st.selectbox(
             "Bubble Size",
-            size_options,
+            chart_cols,
             index=size_default_idx,
             help="What metric determines bubble size"
         )
 
         # Color metric
-        color_options = [
-            'Profit_Factor', 'Win_Loss_Ratio', 'Net_Profit_Pct',
-            'Calmar_Ratio', 'Equity_Curve_Smoothness',
-            'Risk_Adjusted_CAGR', 'Percent_Profitable',
-            'Tail_Risk', 'Hedge_Quality_Index', 'Win_Loss_Duration_Spread'
-        ]
-        color_default_idx = color_options.index(preset_config['color_metric']) if preset_config['color_metric'] in color_options else 0
+        color_default = preset_config['color_metric'] if preset_config['color_metric'] in chart_cols else (chart_cols[3] if len(chart_cols) > 3 else chart_cols[0] if chart_cols else None)
+        color_default_idx = chart_cols.index(color_default) if color_default in chart_cols else 0
         color_metric = st.selectbox(
             "Color Metric",
-            color_options,
+            chart_cols,
             index=color_default_idx,
             help="What metric determines bubble color"
         )
@@ -887,95 +866,58 @@ if apply_filters or 'filtered_df' in st.session_state:
                 if col in display_df.columns:
                     display_df[col] = display_df[col].replace('', pd.NA)
 
-            # Build hover_data dynamically based on available columns
-            hover_data = {
-                'Ticker': True,
-                'Strategy': True,
-                'Total_Trades': True,
-                'Net_Profit_Pct': ':.2f',
-                'Profit_Factor': ':.2f',
-                'Win_Loss_Ratio': ':.2f',
-                'Win_Loss_Spread': ':.2f',
-                'Avg_Drawdown_Pct': ':.2f',
-                'Max_Drawdown_Pct': ':.2f',
-                'Max_Run_Up_Pct': ':.2f',
-                'Percent_Profitable': ':.2f',
-                'Avg_RunUp_DD_Ratio': ':.2f',
-                'Trade_Duration_Efficiency': ':.4f',
-                'Tail_Risk': ':.2f',
-                'Hedge_Quality_Index': ':.2f',
-                'Equity_Curve_Smoothness': ':.2f',
-                'Loss_Control_Metric': ':.2f',
-                'Win_Loss_Duration_Spread': ':.4f'
-            }
+            # Build hover_data dynamically based on ALL available columns
+            hover_data = {}
 
-            # Add parameter columns (these will be filtered by strategy type next in Phase 4)
-            param_hover = {
-                'ATR_Period': True,
-                'HHV_Period': True,
-                'ATR_Multiplier': ':.2f',
-            }
-            hover_data.update(param_hover)
+            # Add all columns to hover, with appropriate formatting
+            for col in display_df.columns:
+                if col in [x_axis, y_axis, size_metric, color_metric]:
+                    # Skip axes columns (already shown)
+                    continue
+                if col.startswith('Unnamed'):
+                    # Skip unnamed index columns
+                    continue
 
-            # Add Donchian columns (always relevant for both DC_ONLY and FULL_SIGIL)
-            if 'DC_Length' in display_df.columns:
-                hover_data['DC_Length'] = True
-            if 'DC_Offset' in display_df.columns:
-                hover_data['DC_Offset'] = True
-            if 'Top_DC_Length' in display_df.columns:
-                hover_data['Top_DC_Length'] = True
-            if 'Top_DC_Offset' in display_df.columns:
-                hover_data['Top_DC_Offset'] = True
-            if 'Bottom_DC_Length' in display_df.columns:
-                hover_data['Bottom_DC_Length'] = True
-            if 'Bottom_DC_Offset' in display_df.columns:
-                hover_data['Bottom_DC_Offset'] = True
+                # Determine format based on column type and name
+                if display_df[col].dtype in ['float64', 'float32']:
+                    # Check if values are small (efficiency metrics) or large (percentages)
+                    if display_df[col].abs().max() < 1:
+                        hover_data[col] = ':.4f'
+                    else:
+                        hover_data[col] = ':.2f'
+                elif display_df[col].dtype in ['int64', 'int32']:
+                    hover_data[col] = True
+                elif display_df[col].dtype == 'object':
+                    # String columns - only include if they have meaningful values
+                    if display_df[col].notna().any() and (display_df[col] != '').any():
+                        hover_data[col] = True
 
-            # Add TRAMA columns (only show if ANY row uses them - will be hidden for pure DC_ONLY datasets)
-            if 'TRAMA_Length' in display_df.columns:
-                # Check if TRAMA is actually used
-                if display_df['TRAMA_Length'].notna().any() and (display_df['TRAMA_Length'] != '').any() and (display_df['TRAMA_Length'] != 0).any():
-                    hover_data['TRAMA_Length'] = True
-            if 'TRAMA_Lookback' in display_df.columns:
-                if display_df['TRAMA_Lookback'].notna().any() and (display_df['TRAMA_Lookback'] != '').any() and (display_df['TRAMA_Lookback'] != 0).any():
-                    hover_data['TRAMA_Lookback'] = True
-
-            # Add MACD Slope parameters (if they exist)
-            macd_params = [
-                '__Use_MACD_Slope', '__Source', '__Fast_Length', '__Slow_Length',
-                '__Signal_Length', '__Histogram_Smoothing_SMA', '__Slope_Lookback_bars',
-                '__Entry_Slope_Threshold', '__Exit_Slope_Threshold', '__MACD_Slope_Hold_Pct'
+            # Limit hover_data to most relevant columns (avoid overwhelming tooltips)
+            # Prioritize: identifiers, performance metrics, parameters
+            priority_cols = [
+                'Ticker', 'Strategy', 'Strategy_Type',
+                'Net_Profit_Pct', 'Total_Trades', 'Profit_Factor',
+                'Win_Loss_Ratio', 'Max_Drawdown_Pct', 'Percent_Profitable'
             ]
-            for param in macd_params:
-                if param in display_df.columns:
-                    if display_df[param].notna().any() and (display_df[param] != '').any():
-                        if param in ['__Entry_Slope_Threshold', '__Exit_Slope_Threshold', '__MACD_Slope_Hold_Pct']:
-                            hover_data[param] = ':.2f'
-                        else:
-                            hover_data[param] = True
 
-            # Add RSI Slope parameters (if they exist)
-            rsi_params = [
-                '__Use_RSI_Slope', '__RSI_Length', '__Smoothing_Type',
-                '__Smoothing_Length', '__RSI_Slope_Hold_Pct'
-            ]
-            for param in rsi_params:
-                if param in display_df.columns:
-                    if display_df[param].notna().any() and (display_df[param] != '').any():
-                        if param == '__RSI_Slope_Hold_Pct':
-                            hover_data[param] = ':.2f'
-                        else:
-                            hover_data[param] = True
+            # Start with priority columns that exist
+            limited_hover = {}
+            for col in priority_cols:
+                if col in hover_data:
+                    limited_hover[col] = hover_data[col]
 
-            # Add Hold % parameters (if they exist)
-            hold_params = ['__Donchian_Channel_Hold_Pct', '__Trailing_Stop_Hold_Pct']
-            for param in hold_params:
-                if param in display_df.columns:
-                    if display_df[param].notna().any() and (display_df[param] != '').any():
-                        hover_data[param] = ':.2f'
+            # Add parameter columns (columns starting with __ or known param names)
+            param_patterns = ['__', 'DC_', 'ATR_', 'TRAMA_', 'HHV_', 'Length', 'Offset', 'Period']
+            for col in hover_data:
+                if any(pat in col for pat in param_patterns):
+                    limited_hover[col] = hover_data[col]
 
-            # Filter hover_data to only include columns that exist in display_df
-            hover_data = {k: v for k, v in hover_data.items() if k in display_df.columns}
+            # Add remaining metrics (up to reasonable limit)
+            for col in hover_data:
+                if col not in limited_hover and len(limited_hover) < 25:
+                    limited_hover[col] = hover_data[col]
+
+            hover_data = limited_hover
 
             # Create bubble chart with dynamic axes
             fig = px.scatter(
@@ -1041,42 +983,44 @@ if apply_filters or 'filtered_df' in st.session_state:
 
         # Top performers table
         st.markdown("---")
-        st.subheader("Top 10 Performers (by Net Profit)")
 
-        # Build column list dynamically based on strategy type and available columns
-        top_10_cols = ['Ticker', 'Strategy', 'Strategy_Type']
+        # Determine best sort column (prefer Net_Profit_Pct, fall back to first numeric)
+        sort_col = 'Net_Profit_Pct' if 'Net_Profit_Pct' in filtered_df.columns else chart_cols[0] if chart_cols else None
 
-        # Add Donchian columns if they exist (relevant for all strategies)
-        if 'DC_Length' in filtered_df.columns:
-            top_10_cols.extend(['DC_Length', 'DC_Offset'])
-        if 'Top_DC_Length' in filtered_df.columns:
-            top_10_cols.extend(['Top_DC_Length', 'Top_DC_Offset', 'Bottom_DC_Length', 'Bottom_DC_Offset'])
+        if sort_col:
+            st.subheader(f"Top 10 Performers (by {sort_col.replace('_', ' ')})")
 
-        # Check if dataset contains FULL_SIGIL strategies (add optional params if so)
-        has_full_sigil = False
-        if 'Strategy_Type' in filtered_df.columns:
-            has_full_sigil = (filtered_df['Strategy_Type'] == 'FULL_SIGIL').any() or (filtered_df['Strategy_Type'] == 'PARTIAL').any()
+            # Build column list dynamically - prioritize identifier and parameter columns
+            top_10_cols = []
 
-        if has_full_sigil:
-            # Add optional parameters (only if FULL_SIGIL strategies present)
-            optional_params = ['ATR_Period', 'HHV_Period', 'ATR_Multiplier', 'TRAMA_Length', 'TRAMA_Lookback']
-            for param in optional_params:
-                if param in filtered_df.columns:
-                    top_10_cols.append(param)
+            # Add identifier columns first
+            id_cols = ['Ticker', 'Strategy', 'Strategy_Type']
+            for col in id_cols:
+                if col in filtered_df.columns:
+                    top_10_cols.append(col)
 
-        # Add key performance metrics
-        top_10_cols.extend([
-            'Net_Profit_Pct', 'Win_Loss_Ratio', 'Max_Drawdown_Pct',
-            'Avg_Drawdown_Pct', 'Profit_Factor', 'Total_Trades',
-            'Percent_Profitable', 'Risk_Adjusted_CAGR'
-        ])
+            # Add all parameter columns (columns starting with __ or known param patterns)
+            param_patterns = ['__', 'DC_', 'ATR_', 'TRAMA_', 'HHV_', 'Length', 'Offset', 'Period', 'Multiplier']
+            for col in filtered_df.columns:
+                if any(pat in col for pat in param_patterns) and col not in top_10_cols:
+                    top_10_cols.append(col)
 
-        # Filter to only include columns that exist
-        top_10_cols = [col for col in top_10_cols if col in filtered_df.columns]
+            # Add key performance metrics that exist
+            perf_cols = [
+                'Net_Profit_Pct', 'Win_Loss_Ratio', 'Max_Drawdown_Pct',
+                'Avg_Drawdown_Pct', 'Profit_Factor', 'Total_Trades',
+                'Percent_Profitable', 'Equity_Curve_Smoothness',
+                'Trade_Duration_Efficiency', 'Max_Run_Up_Pct'
+            ]
+            for col in perf_cols:
+                if col in filtered_df.columns and col not in top_10_cols:
+                    top_10_cols.append(col)
 
-        top_10 = filtered_df.nlargest(10, 'Net_Profit_Pct')[top_10_cols].round(2)
+            top_10 = filtered_df.nlargest(10, sort_col)[top_10_cols].round(2)
 
-        st.dataframe(top_10, use_container_width=True, hide_index=True)
+            st.dataframe(top_10, use_container_width=True, hide_index=True)
+        else:
+            st.warning("No numeric columns available for ranking.")
 
         # Export options
         st.markdown("---")
