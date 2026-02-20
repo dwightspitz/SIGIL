@@ -11,6 +11,57 @@ from pathlib import Path
 import numpy as np
 
 # ============================================================================
+# METRICS CONFIGURATION
+# ============================================================================
+
+# Define ALL possible metrics and their filter directions
+# These will be filtered to only show metrics that exist in the uploaded data
+ALL_METRICS_CONFIG = {
+    # Format: 'Column_Name': ('Display Name', 'direction', default_pct, tooltip, category)
+    # direction: 'top' = keep top X%, 'bottom' = keep bottom X%
+
+    # Win/Loss Analysis
+    'Win_Loss_Ratio': ('Win/Loss Ratio', 'top', 50, 'Avg Win % / |Avg Loss %|. Higher = wins much larger than losses. Good > 2.0', 'Win/Loss Analysis'),
+    'Profit_Factor': ('Profit Factor', 'top', 50, 'Gross Profit / Gross Loss. Higher = better. Good > 1.5', 'Win/Loss Analysis'),
+    'Win_Loss_Spread': ('Win/Loss Spread', 'top', 50, 'Avg Win % - Avg Loss %. Higher = better expectancy', 'Win/Loss Analysis'),
+    'Loss_Control_Metric': ('Loss Control', 'bottom', 50, 'Avg Loss % / Avg Win %. Lower = better loss control. Good < 0.5', 'Win/Loss Analysis'),
+
+    # Risk Management
+    'Max_Drawdown_Pct': ('Max Drawdown %', 'bottom', 50, 'Maximum peak-to-trough decline. Lower = better capital preservation', 'Risk Management'),
+    'Avg_Drawdown_Pct': ('Avg Drawdown %', 'bottom', 50, 'Average close-to-close drawdown. Lower = more consistent', 'Risk Management'),
+    'Tail_Risk': ('Tail Risk', 'bottom', 50, 'Largest Loss / Avg Loss. Lower = no extreme outliers. Good < 2.0', 'Risk Management'),
+    'Avg_RunUp_DD_Ratio': ('Avg Run-Up/DD Ratio', 'top', 50, 'Max Run-up / Avg Drawdown. Higher = better upside vs typical DD. Good > 15', 'Risk Management'),
+
+    # Efficiency & Consistency
+    'Equity_Curve_Smoothness': ('Equity Smoothness', 'top', 50, 'Max Run-up / Max Drawdown. Higher = smoother equity curve. Good > 3.0', 'Efficiency'),
+    'Trade_Duration_Efficiency': ('Duration Efficiency', 'top', 50, 'Net Profit % / Avg Bars. Higher = better time usage', 'Efficiency'),
+    'Win_Loss_Duration_Spread': ('Win/Loss Duration Spread', 'top', 50, 'Time efficiency: winning fast vs losing slow. Positive = good', 'Efficiency'),
+    'Hedge_Quality_Index': ('Hedge Quality', 'top', 50, '(1 - Loss/Win) × 100. Higher = better loss management (0-100 scale)', 'Efficiency'),
+    'Capital_Leverage_Ratio': ('Capital Leverage', 'bottom', 50, 'Account Size Required / Initial Capital. Lower = less leverage needed. 1.0 = no leverage', 'Efficiency'),
+    'Capital_Efficiency_Ratio': ('Capital Efficiency', 'top', 50, 'Return / Leverage Ratio. Higher = better return per dollar of capital required', 'Efficiency'),
+
+    # Overall Performance
+    'Net_Profit_Pct': ('Net Profit %', 'top', 50, 'Total return. Higher = better', 'Performance'),
+    'Percent_Profitable': ('Win Rate %', 'top', 50, 'Percentage of winning trades. Higher = better', 'Performance'),
+    'Max_Run_Up_Pct': ('Max Run-Up %', 'top', 50, 'Maximum peak-to-bottom gain. Higher = strong profit potential', 'Performance'),
+    'Total_Trades': ('Total Trades', 'top', 50, 'Number of closed trades. Higher = more opportunities', 'Performance'),
+}
+
+def get_available_metrics(df):
+    """Return metrics_config filtered to only metrics present in the dataframe"""
+    return {k: v for k, v in ALL_METRICS_CONFIG.items() if k in df.columns}
+
+def group_metrics_by_category(metrics_cfg):
+    """Group available metrics by their category"""
+    categories = {}
+    for metric, config in metrics_cfg.items():
+        category = config[4] if len(config) > 4 else 'Other'
+        if category not in categories:
+            categories[category] = []
+        categories[category].append((metric, config))
+    return categories
+
+# ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
 
@@ -639,67 +690,13 @@ with preset_col2:
 st.markdown("---")
 st.markdown("**Set percentile thresholds for each metric** (higher % = more selective)")
 
-# Create filter columns (4 columns for expanded metrics)
-col1, col2, col3, col4 = st.columns(4)
-
-# Define ALL possible metrics and their filter directions
-# These will be filtered to only show metrics that exist in the uploaded data
-ALL_METRICS_CONFIG = {
-    # Format: 'Column_Name': ('Display Name', 'direction', default_pct, tooltip, category)
-    # direction: 'top' = keep top X%, 'bottom' = keep bottom X%
-
-    # Win/Loss Analysis
-    'Win_Loss_Ratio': ('Win/Loss Ratio', 'top', 50, 'Avg Win % / |Avg Loss %|. Higher = wins much larger than losses. Good > 2.0', 'Win/Loss Analysis'),
-    'Profit_Factor': ('Profit Factor', 'top', 50, 'Gross Profit / Gross Loss. Higher = better. Good > 1.5', 'Win/Loss Analysis'),
-    'Win_Loss_Spread': ('Win/Loss Spread', 'top', 50, 'Avg Win % - Avg Loss %. Higher = better expectancy', 'Win/Loss Analysis'),
-    'Loss_Control_Metric': ('Loss Control', 'bottom', 50, 'Avg Loss % / Avg Win %. Lower = better loss control. Good < 0.5', 'Win/Loss Analysis'),
-
-    # Risk Management
-    'Max_Drawdown_Pct': ('Max Drawdown %', 'bottom', 50, 'Maximum peak-to-trough decline. Lower = better capital preservation', 'Risk Management'),
-    'Avg_Drawdown_Pct': ('Avg Drawdown %', 'bottom', 50, 'Average close-to-close drawdown. Lower = more consistent', 'Risk Management'),
-    'Tail_Risk': ('Tail Risk', 'bottom', 50, 'Largest Loss / Avg Loss. Lower = no extreme outliers. Good < 2.0', 'Risk Management'),
-    'Avg_RunUp_DD_Ratio': ('Avg Run-Up/DD Ratio', 'top', 50, 'Max Run-up / Avg Drawdown. Higher = better upside vs typical DD. Good > 15', 'Risk Management'),
-
-    # Efficiency & Consistency
-    'Equity_Curve_Smoothness': ('Equity Smoothness', 'top', 50, 'Max Run-up / Max Drawdown. Higher = smoother equity curve. Good > 3.0', 'Efficiency'),
-    'Trade_Duration_Efficiency': ('Duration Efficiency', 'top', 50, 'Net Profit % / Avg Bars. Higher = better time usage', 'Efficiency'),
-    'Win_Loss_Duration_Spread': ('Win/Loss Duration Spread', 'top', 50, 'Time efficiency: winning fast vs losing slow. Positive = good', 'Efficiency'),
-    'Hedge_Quality_Index': ('Hedge Quality', 'top', 50, '(1 - Loss/Win) × 100. Higher = better loss management (0-100 scale)', 'Efficiency'),
-    'Capital_Leverage_Ratio': ('Capital Leverage', 'bottom', 50, 'Account Size Required / Initial Capital. Lower = less leverage needed. 1.0 = no leverage', 'Efficiency'),
-    'Capital_Efficiency_Ratio': ('Capital Efficiency', 'top', 50, 'Return / Leverage Ratio. Higher = better return per dollar of capital required', 'Efficiency'),
-
-    # Overall Performance
-    'Net_Profit_Pct': ('Net Profit %', 'top', 50, 'Total return. Higher = better', 'Performance'),
-    'Percent_Profitable': ('Win Rate %', 'top', 50, 'Percentage of winning trades. Higher = better', 'Performance'),
-    'Max_Run_Up_Pct': ('Max Run-Up %', 'top', 50, 'Maximum peak-to-bottom gain. Higher = strong profit potential', 'Performance'),
-    'Total_Trades': ('Total Trades', 'top', 50, 'Number of closed trades. Higher = more opportunities', 'Performance'),
-}
-
-# Filter to only include metrics that exist in the loaded dataframe
-def get_available_metrics(df):
-    """Return metrics_config filtered to only metrics present in the dataframe"""
-    return {k: v for k, v in ALL_METRICS_CONFIG.items() if k in df.columns}
-
-# Will be set after data is loaded
-metrics_config = {}
-
 # Get preset values if selected
 preset_values = get_filter_preset(filter_preset) if filter_preset != "Custom" else {}
 
 # Store filter values
 filters = {}
 
-# Group metrics by category for display
-def group_metrics_by_category(metrics_cfg):
-    """Group available metrics by their category"""
-    categories = {}
-    for metric, config in metrics_cfg.items():
-        category = config[4] if len(config) > 4 else 'Other'
-        if category not in categories:
-            categories[category] = []
-        categories[category].append((metric, config))
-    return categories
-
+# Group available metrics by category for display
 grouped_metrics = group_metrics_by_category(metrics_config)
 
 # Display metrics dynamically based on what's available
@@ -981,67 +978,179 @@ if apply_filters or 'filtered_df' in st.session_state:
 
             st.plotly_chart(fig, use_container_width=True)
 
-        # Top performers table
-        st.markdown("---")
+    # ============================================================================
+    # 3D VISUALIZATION SECTION (outside column context for full width)
+    # ============================================================================
 
-        # Determine best sort column (prefer Net_Profit_Pct, fall back to first numeric)
-        sort_col = 'Net_Profit_Pct' if 'Net_Profit_Pct' in filtered_df.columns else chart_cols[0] if chart_cols else None
+    st.markdown("---")
+    st.header("3D Metric Explorer")
 
-        if sort_col:
-            st.subheader(f"Top 10 Performers (by {sort_col.replace('_', ' ')})")
+    with st.expander("3D Scatter Plot", expanded=True):
+        st.markdown("Compare 3 metrics simultaneously. Rotate, zoom, and pan to explore.")
 
-            # Build column list dynamically - prioritize identifier and parameter columns
-            top_10_cols = []
+        # Axis selectors in columns
+        col3d_1, col3d_2, col3d_3, col3d_4 = st.columns(4)
 
-            # Add identifier columns first
-            id_cols = ['Ticker', 'Strategy', 'Strategy_Type']
-            for col in id_cols:
-                if col in filtered_df.columns:
-                    top_10_cols.append(col)
+        with col3d_1:
+            x_3d = st.selectbox("X-Axis", chart_cols, index=0, key="3d_x")
+        with col3d_2:
+            y_3d = st.selectbox("Y-Axis", chart_cols, index=min(1, len(chart_cols)-1), key="3d_y")
+        with col3d_3:
+            z_3d = st.selectbox("Z-Axis", chart_cols, index=min(2, len(chart_cols)-1), key="3d_z")
+        with col3d_4:
+            color_3d = st.selectbox("Color", chart_cols, index=min(3, len(chart_cols)-1), key="3d_color")
 
-            # Add all parameter columns (columns starting with __ or known param patterns)
-            param_patterns = ['__', 'DC_', 'ATR_', 'TRAMA_', 'HHV_', 'Length', 'Offset', 'Period', 'Multiplier']
-            for col in filtered_df.columns:
-                if any(pat in col for pat in param_patterns) and col not in top_10_cols:
-                    top_10_cols.append(col)
+        # 3D scatter plot
+        fig_3d = px.scatter_3d(
+            filtered_df,
+            x=x_3d,
+            y=y_3d,
+            z=z_3d,
+            color=color_3d,
+            hover_data={col: True for col in ['Ticker', 'Strategy', 'Net_Profit_Pct', 'Win_Loss_Ratio']
+                       if col in filtered_df.columns},
+            color_continuous_scale='RdYlGn',
+            height=700
+        )
 
-            # Add key performance metrics that exist
-            perf_cols = [
-                'Net_Profit_Pct', 'Win_Loss_Ratio', 'Max_Drawdown_Pct',
-                'Avg_Drawdown_Pct', 'Profit_Factor', 'Total_Trades',
-                'Percent_Profitable', 'Equity_Curve_Smoothness',
-                'Trade_Duration_Efficiency', 'Max_Run_Up_Pct'
-            ]
-            for col in perf_cols:
-                if col in filtered_df.columns and col not in top_10_cols:
-                    top_10_cols.append(col)
+        fig_3d.update_layout(
+            scene=dict(
+                xaxis_title=x_3d.replace('_', ' '),
+                yaxis_title=y_3d.replace('_', ' '),
+                zaxis_title=z_3d.replace('_', ' ')
+            ),
+            margin=dict(l=0, r=0, t=30, b=0)
+        )
 
-            top_10 = filtered_df.nlargest(10, sort_col)[top_10_cols].round(2)
+        st.plotly_chart(fig_3d, use_container_width=True,
+                       config={'scrollZoom': False})
 
-            st.dataframe(top_10, use_container_width=True, hide_index=True)
+    # Parameter Optimization Surface Plot
+    with st.expander("Parameter Optimization Surface"):
+        st.markdown("Visualize how performance varies across parameter combinations.")
+
+        # Detect parameter columns
+        param_cols_3d = [col for col in filtered_df.columns
+                     if any(p in col for p in ['Length', 'Period', 'Offset',
+                                               'Multiplier', 'DC_', 'ATR_', 'TRAMA_', 'HHV_'])]
+
+        if len(param_cols_3d) >= 2:
+            surf_col1, surf_col2, surf_col3 = st.columns(3)
+
+            with surf_col1:
+                x_param = st.selectbox("X Parameter", param_cols_3d, key="surf_x")
+            with surf_col2:
+                # Default to second param if available
+                y_default = 1 if len(param_cols_3d) > 1 else 0
+                y_param = st.selectbox("Y Parameter", param_cols_3d, index=y_default, key="surf_y")
+            with surf_col3:
+                # Performance metrics for Z-axis
+                perf_metrics = [col for col in ['Net_Profit_Pct', 'Profit_Factor', 'Win_Loss_Ratio',
+                                                'Equity_Curve_Smoothness', 'Max_Drawdown_Pct',
+                                                'Percent_Profitable', 'Max_Run_Up_Pct']
+                               if col in filtered_df.columns]
+                z_metric = st.selectbox("Performance Metric", perf_metrics, key="surf_z")
+
+            if x_param != y_param:
+                # Aggregate by parameter combinations
+                pivot = filtered_df.pivot_table(
+                    values=z_metric,
+                    index=y_param,
+                    columns=x_param,
+                    aggfunc='mean'
+                )
+
+                if not pivot.empty and pivot.shape[0] > 1 and pivot.shape[1] > 1:
+                    fig_surface = go.Figure(data=[go.Surface(
+                        x=pivot.columns.values,
+                        y=pivot.index.values,
+                        z=pivot.values,
+                        colorscale='RdYlGn',
+                        colorbar=dict(title=z_metric.replace('_', ' '))
+                    )])
+
+                    fig_surface.update_layout(
+                        title=f'{z_metric.replace("_", " ")} by {x_param.replace("_", " ")} x {y_param.replace("_", " ")}',
+                        scene=dict(
+                            xaxis_title=x_param.replace('_', ' '),
+                            yaxis_title=y_param.replace('_', ' '),
+                            zaxis_title=z_metric.replace('_', ' ')
+                        ),
+                        height=600,
+                        margin=dict(l=0, r=0, t=50, b=0)
+                    )
+
+                    st.plotly_chart(fig_surface, use_container_width=True,
+                                   config={'scrollZoom': False})
+                else:
+                    st.warning("Not enough unique parameter combinations to create surface plot.")
+            else:
+                st.warning("Please select different parameters for X and Y axes.")
         else:
-            st.warning("No numeric columns available for ranking.")
+            st.info("Surface plots require at least 2 parameter columns in your data "
+                   "(e.g., DC_Length, ATR_Period, etc.)")
 
-        # Export options
-        st.markdown("---")
-        st.subheader("Export Options")
+    # Top performers table
+    st.markdown("---")
 
-        export_col1, export_col2 = st.columns(2)
+    # Determine best sort column (prefer Net_Profit_Pct, fall back to first numeric)
+    sort_col = 'Net_Profit_Pct' if 'Net_Profit_Pct' in filtered_df.columns else chart_cols[0] if chart_cols else None
 
-        with export_col1:
-            # CSV export
-            csv = filtered_df.to_csv(index=False)
-            st.download_button(
-                label="Download Filtered Results (CSV)",
-                data=csv,
-                file_name=f"scry_filtered_{len(filtered_df)}_results.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+    if sort_col:
+        st.subheader(f"Top 10 Performers (by {sort_col.replace('_', ' ')})")
 
-        with export_col2:
-            # Chart export instructions
-            st.info("**Save Chart as PNG**: Hover over chart and click camera icon")
+        # Build column list dynamically - prioritize identifier and parameter columns
+        top_10_cols = []
+
+        # Add identifier columns first
+        id_cols = ['Ticker', 'Strategy', 'Strategy_Type']
+        for col in id_cols:
+            if col in filtered_df.columns:
+                top_10_cols.append(col)
+
+        # Add all parameter columns (columns starting with __ or known param patterns)
+        param_patterns = ['__', 'DC_', 'ATR_', 'TRAMA_', 'HHV_', 'Length', 'Offset', 'Period', 'Multiplier']
+        for col in filtered_df.columns:
+            if any(pat in col for pat in param_patterns) and col not in top_10_cols:
+                top_10_cols.append(col)
+
+        # Add key performance metrics that exist
+        perf_cols = [
+            'Net_Profit_Pct', 'Win_Loss_Ratio', 'Max_Drawdown_Pct',
+            'Avg_Drawdown_Pct', 'Profit_Factor', 'Total_Trades',
+            'Percent_Profitable', 'Equity_Curve_Smoothness',
+            'Trade_Duration_Efficiency', 'Max_Run_Up_Pct'
+        ]
+        for col in perf_cols:
+            if col in filtered_df.columns and col not in top_10_cols:
+                top_10_cols.append(col)
+
+        top_10 = filtered_df.nlargest(10, sort_col)[top_10_cols].round(2)
+
+        st.dataframe(top_10, use_container_width=True, hide_index=True)
+    else:
+        st.warning("No numeric columns available for ranking.")
+
+    # Export options
+    st.markdown("---")
+    st.subheader("Export Options")
+
+    export_col1, export_col2 = st.columns(2)
+
+    with export_col1:
+        # CSV export
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            label="Download Filtered Results (CSV)",
+            data=csv,
+            file_name=f"scry_filtered_{len(filtered_df)}_results.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    with export_col2:
+        # Chart export instructions
+        st.info("**Save Chart as PNG**: Hover over chart and click camera icon")
 
 # Footer
 st.markdown("---")
